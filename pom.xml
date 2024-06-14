@@ -193,6 +193,15 @@
             <version>${akka.version}</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.typesafe.akka/akka-testkit -->
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-testkit_3</artifactId>
+            <version>2.8.5</version>
+            <scope>test</scope>
+        </dependency>
+
+
         <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-api -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -304,6 +313,7 @@
                             <excludes>
                                 <exclude>io/numaproj/numaflow/examples/*</exclude>
                                 <exclude>io/numaproj/numaflow/mapstream/v1/*</exclude>
+                                <exclude>io/numaproj/numaflow/flatmap/v1/*</exclude>
                                 <exclude>io/numaproj/numaflow/reduce/v1/*</exclude>
                                 <exclude>io/numaproj/numaflow/sessionreduce/v1/*</exclude>
                                 <exclude>io/numaproj/numaflow/map/v1/*</exclude>
@@ -340,6 +350,7 @@
                     <excludePackageNames>
                         io.numaproj.numaflow.info,
                         io.numaproj.numaflow.map.v1,
+                        io.numaproj.numaflow.flatmap.v1,
                         io.numaproj.numaflow.reduce.v1,
                         io.numaproj.numaflow.mapstream.v1,
                         io.numaproj.numaflow.sourcetransformer.v1,
@@ -392,7 +403,7 @@
                 <filtering>true</filtering>
                 <includes>
                   <include>numaflow-java-sdk-version.properties</include>
-                </includes>                
+                </includes>
             </resource>
         </resources>
     </build>

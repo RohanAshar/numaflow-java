@@ -1,0 +1,196 @@
+apiVersion: numaflow.numaproj.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: o11y-abstract-gs-pipeline
+spec:
+#  sideInputs:
+#    - name: overrides
+#      container:
+#        image: test-0
+#        imagePullPolicy: Never
+#        env:
+#          - name: S3_BUCKET
+#            value: o11y-goldensignal-config-dev
+#          - name: S3_RESOURCE
+#            value: mesh_overrides.json
+#          - name: AWS_REGION
+#            value: us-west-2
+#        args:
+#          - "override"
+#      trigger:
+#        schedule: "*/5 * * * *"
+#        # timezone: America/Los_Angeles
+  vertices:
+    - name: input
+      scale:
+        min: 1
+        max: 1
+      source:
+        kafka:
+          brokers:
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29701,
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29702
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29801
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29802
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29901
+            - eventbus-local.pl-data-lake-qa.a.intuit.com:29902
+          # todo - Set the right topic and consumer group.
+          topic: o11y-apigw-sandbox-input1
+          consumerGroup: mesh-qal-6
+          tls: # Optional.
+            insecureSkipVerify: true
+        transformer:
+          container:
+            env:
+              - name: APP_ENV
+                value: local
+            image: test-0
+            imagePullPolicy: Never
+            args:
+              - "source"
+#    - name: input
+#      scale:
+#        min: 1
+#      source:
+#        kafka:
+#          brokers:
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29701,
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29702
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29801
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29802
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29901
+#            - eventbus-local.pl-data-lake-qa.a.intuit.com:29902
+#          # todo - Set the right topic and consumer group.
+#          topic: o11y-apigw-sandbox-input1
+#          consumerGroup: mesh-apigw-1
+#          tls: # Optional.
+#            caCertSecret:
+#              name: eventbus-ca-cert
+#              key: CA_CertChain.pem
+#        transformer:
+#          container:
+#            image: test-0
+#            imagePullPolicy: Never
+#            args:
+#              - "sourceAPIGW"
+    - name: pre-aggregation
+      volumes:
+        - name: pipeline-conf
+          configMap:
+            name: abstract-gs-config
+#        - name: overrides-conf
+#          configMap:
+#            name: overrides
+      scale:
+        min: 1
+      udf:
+        container:
+          env:
+            - name: APP_ENV
+              value: local
+            - name: CFG
+              value: abstract-gs-config
+          image: test-0
+          volumeMounts:
+            - mountPath: /etc/config/
+              name: pipeline-conf
+#            - mountPath: /overrides-conf
+#              name: overrides-conf
+          imagePullPolicy: Never
+          args:
+            - "preaggregator"
+#      sideInputs:
+#        - overrides
+    - name: fixed-aggregation
+      scale:
+        min: 1
+      udf:
+        container:
+          env:
+            - name: APP_ENV
+              value: local
+          image: test-1
+          imagePullPolicy: Never
+#          image: docker.intuit.com/dev-devx/o11y-abstract-gs-java/service/o11y-abstract-gs-java:master-8f943d8
+        groupBy:
+          window:
+            fixed:
+              length: 60s
+          keyed: true
+          storage:
+            emptyDir: { }
+    - name: post-aggregation
+      volumes:
+        - name: overrides-conf
+          configMap:
+            name: overrides
+      scale:
+        min: 1
+      udf:
+        container:
+          env:
+            - name: APP_ENV
+              value: local
+            - name: CFG
+              value: abstract-gs-config
+          image: test-0
+          volumeMounts:
+            - mountPath: /overrides-conf
+              name: overrides-conf
+          imagePullPolicy: Never
+          args:
+            - "postaggregator"
+#      sideInputs:
+#        - overrides
+    - name: log-output
+      scale:
+        min: 1
+      sink:
+        log: {}
+    - name: log-source
+      scale:
+        min: 1
+      sink:
+        log: { }
+#    - name: wavefront-publish
+#      volumes:
+#        - name: pipeline-conf
+#          configMap:
+#            name: abstract-gs-config
+#      scale:
+#        min: 1
+#      sink:
+#        udsink:
+#          container:
+#            args:
+#              - "wavefrontPublisher"
+#            env:
+#              - name: APP_ENV
+#                value: local
+#              - name: CFG
+#                value: abstract-gs-config
+#            image: test-0
+#            volumeMounts:
+#              - mountPath: /etc/config/
+#                name: pipeline-conf
+#            imagePullPolicy: Never
+  edges:
+    - from: input
+      to: pre-aggregation
+    - from: input
+      to: log-source
+    - from: pre-aggregation
+      to: fixed-aggregation
+    - from: fixed-aggregation
+      to: post-aggregation
+    - from: fixed-aggregation
+      to: log-output
+    - from: post-aggregation
+      to: log-output
+#    - from: post-aggregation
+#      to: wavefront-publish
+#      conditions:
+#        tags:
+#          operator: or
+#          values:
+#            - wf
